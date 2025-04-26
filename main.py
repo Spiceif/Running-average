@@ -35,9 +35,19 @@ def video_to_array(input_video):
    )
     return video_array
 
-#псевдо обработка
-array_clipped = np.clip(video_to_array(video_path), None, 25)
 
+#псевдо обработка
+array = video_to_array(video_path)
+array.flags.writeable = False
+processed_video = array.copy()
+
+# Цикл для обработки (работает крайне медленно)
+for n in range(processed_video.shape[0]): # Цикл по кадрам
+    for i in range(processed_video.shape[1]): # Цикл по высоте (H)
+        for j in range(processed_video.shape[2]): # Цикл по ширине (W)
+            for c in range(processed_video.shape[3]): # Цикл по каналам (C)
+                if 50 <= processed_video[n, i, j, c] <= 75:
+                    processed_video[n, i, j, c] = 125
 
 #массив обратно в видео
 def array_to_video(frames, output_path, fps):
@@ -55,4 +65,4 @@ def array_to_video(frames, output_path, fps):
     out.stdin.close()
     out.wait()
 
-array_to_video(array_clipped, "output/output.mp4", 25)
+array_to_video(processed_video, "output/output.mp4", 25)

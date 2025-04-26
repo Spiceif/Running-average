@@ -1,0 +1,9 @@
+http://www.graph.unn.ru/rus/materials/CG/CG04_ImageProcessing2.pdf
+decoding video pixel data ffmpeg python
+http://www.graph.unn.ru/rus/materials/CG/CG04_ImageProcessing2.pdf
+https://www.sciencedirect.com/topics/computer-science/background-subtraction
+http://jre.cplire.ru/win/mar12/12/text.html
+https://github.com/kkroening/ffmpeg-python/tree/master/examples
+https://dzen.ru/a/aAnZuDUAcFqCAXnq
+https://cyberleninka.ru/article/n/metody-vychitaniya-fona-dlya-obnaruzheniya-obekta-v-videopotoke/viewer
+https://xakep.ru/2019/01/14/yandex-ds/#toc03.1

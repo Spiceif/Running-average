@@ -7,3 +7,4 @@ https://github.com/kkroening/ffmpeg-python/tree/master/examples
 https://dzen.ru/a/aAnZuDUAcFqCAXnq
 https://cyberleninka.ru/article/n/metody-vychitaniya-fona-dlya-obnaruzheniya-obekta-v-videopotoke/viewer
 https://xakep.ru/2019/01/14/yandex-ds/#toc03.1
+https://books.ifmo.ru/file/pdf/3066.pdf

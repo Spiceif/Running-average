@@ -3,17 +3,17 @@ import ffmpeg
 from glob import glob
 import os
 from scipy.ndimage import gaussian_filter, median_filter, binary_dilation
-import cv2  # только для findContours и drawContours
+import cv2  # только для findContours и drawContours (альтернатив нет)
 
 # Константы
-ALPHA = 0.35  # Коэффициент для running average
-THRESHOLD = 20  # Порог для обнаружения движения
-MIN_CONTOUR_AREA = 150 # Минимальная площадь контура
+ALPHA = 0.95  # Коэффициент для running average
+THRESHOLD = 3  # Порог для обнаружения движения
+MIN_CONTOUR_AREA = 200 # Минимальная площадь контура
 GAUSSIAN_SIGMA = 1 # Параметр размытия Гаусса
 MEDIAN_SIZE = 3 # Размер медианного фильтра
-DILATION_ITER = 10 # Количество итераций дилатации
+DILATION_ITER = 20 # Количество итераций дилатации
 FPS = 25 # Количество кадров в секунду
-BOX_COLOR = (255, 0, 0)  # Красный цвет для прямоугольников
+BOX_COLOR = (0, 0, 255)  # Цвет для прямоугольников
 BOX_THICKNESS = 2  # Толщина линий прямоугольника
 
 # Путь к FFmpeg
@@ -35,7 +35,7 @@ def video_to_array(video):
     video_info = next(i for i in probe['streams'] if i['codec_type'] == 'video')
     width = int(video_info['width'])
     height = int(video_info['height'])
-    out, _ = ffmpeg.input(video).output('pipe:', format='rawvideo', pix_fmt='rgb24').run(capture_stdout=True)
+    out,_ = ffmpeg.input(video).output('pipe:', format='rawvideo', pix_fmt='rgb24').run(capture_stdout=True)
     result = np.frombuffer(out, np.uint8).reshape([-1, height, width, 3])
     return result
 
@@ -49,68 +49,39 @@ def apply_filters(frame):
         filtered_frame[..., channel] = channel_data
     return filtered_frame
 
-
+# Определение движения
 def motion_detector(current_frame):
     global background
-    
-    # Преобразуем в grayscale
-    gray = np.dot(current_frame[...,:3], [0.2989, 0.5870, 0.1140])
-    
-    # Инициализация фона
-    if background is None:
+    gray = np.dot(current_frame[...,:3], [0.2989, 0.5870, 0.1140])                                                      # Преобразуем в grayscale
+    if background is None:                                                                                                                    # Инициализация фона
         background = gray.copy()
         return np.zeros_like(gray, dtype=np.uint8)
-    
-    # Running average для фона
-    background = ALPHA * background + (1 - ALPHA) * gray
-    #background = (1 - ALPHA) * background + ALPHA  * gray #не оригинал
-    
-    # Разница между текущим кадром и фоном
-    diff = np.abs(gray - background)
-    
-    # Пороговая обработка
-    motion_mask = (diff > THRESHOLD).astype(np.uint8) * 255
-    
+    background = (1 - ALPHA) * background + ALPHA * gray                                                             # Running average для фона
+    diff = np.abs(gray - background)                                                                                                   # Разница между текущим кадром и фоном
+    motion_mask = (diff > THRESHOLD).astype(np.uint8) * 255                                                        # Пороговая обработка
     return motion_mask
 
+# Отрисовка контуров
 def draw_bounding_boxes(mask_frame, original_frame):
-    # Находим контуры
-    contours, _ = cv2.findContours(mask_frame, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    
-    # Создаем копию оригинального кадра
-    result_frame = original_frame.copy()
-    
-    # Рисуем прямоугольники вокруг объектов
-    for cnt in contours:
+    contours,_ = cv2.findContours(mask_frame, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)  # Находим контуры
+    result_frame = original_frame.copy()                                                                                           # Создаем копию оригинального кадра
+    for cnt in contours:                                                                                                                       # Рисуем прямоугольники вокруг объектов
         if cv2.contourArea(cnt) > MIN_CONTOUR_AREA:
-            # Получаем координаты ограничивающего прямоугольника
-            x, y, w, h = cv2.boundingRect(cnt)
-            
-            # Рисуем прямоугольник (используем OpenCV только здесь)
-            cv2.rectangle(result_frame, (x, y), (x+w, y+h), BOX_COLOR, BOX_THICKNESS)
-    
+            x, y, w, h = cv2.boundingRect(cnt)                                                                                      # Получаем координаты ограничивающего прямоугольника
+            cv2.rectangle(result_frame, (x, y), (x+w, y+h), BOX_COLOR, BOX_THICKNESS)                 # Рисуем прямоугольник (используем OpenCV только здесь)
     return result_frame
 
 def process_video_frames(unprocessed_frames):
     processed_frames = []
-    
-    for frame in unprocessed_frames:
-        # Применяем фильтры
-        filtered = apply_filters(frame)
-        
-        # Получаем маску движения
-        motion_mask = motion_detector(filtered)
-        
-        # Морфологическое улучшение маски
-        motion_mask = binary_dilation(motion_mask, iterations=DILATION_ITER).astype(np.uint8) * 255
-        
-        # Рисуем прямоугольники на оригинальном кадре
-        result_frame = draw_bounding_boxes(motion_mask, frame)
-        
+    for frame in unprocessed_frames:                                                                                               # Исходные кадры
+        filtered = apply_filters(frame)                                                                                                 # Применяем фильтры
+        motion_mask = motion_detector(filtered)                                                                              # Получаем маску движения
+        motion_mask = binary_dilation(motion_mask, iterations=DILATION_ITER).astype(np.uint8) * 255 # Морфологическое улучшение маски
+        result_frame = draw_bounding_boxes(motion_mask, frame)                                                 # Рисуем прямоугольники на оригинальном кадре
         processed_frames.append(result_frame)
-    
     return np.array(processed_frames)
 
+# Кодирование массивов обратно в видео
 def array_to_video(frames, output_path, fps):
     height, width = frames.shape[1], frames.shape[2]
     out = ffmpeg.input('pipe:', format='rawvideo', pix_fmt='rgb24', s=f'{width}x{height}', r=fps).output(output_path, pix_fmt='yuv420p').overwrite_output().run_async(pipe_stdin=True)

@@ -2,19 +2,21 @@ import numpy as np
 import ffmpeg
 from glob import glob
 import os
-from scipy.ndimage import gaussian_filter, median_filter, binary_dilation, label
+from scipy.ndimage import gaussian_filter, median_filter, binary_dilation, binary_erosion, label
 import time
 
 # Константы
-ALPHA = 0.95  # Коэффициент для running average
-THRESHOLD = 3  # Порог для обнаружения движения
+ALPHA = 0.7  # Коэффициент для running average
+THRESHOLD = 25  # Порог для обнаружения движения
+
 MIN_CONTOUR_AREA = 529 # Минимальная площадь контура
-GAUSSIAN_SIGMA = 1 # Параметр размытия Гаусса
-MEDIAN_SIZE = 3 # Размер медианного фильтра
-DILATION_ITER = 30 # Количество итераций дилатации
+GAUSSIAN_SIGMA = 0 # Параметр размытия Гаусса
+PRE_MEDIAN_SIZE = 0 # Размер медианного фильтра (предобработка)
+POST_MEDIAN_SIZE = 0 # Размер медианного фильтра (постобработка)
+MORPHOLOGY_ITER = 20 # Количество итераций дилатации
 FPS = 25 # Количество кадров в секунду
-BOX_COLOR = (0, 0, 255)  # Цвет для прямоугольников
-BOX_THICKNESS = 1  # Толщина линий прямоугольника
+BOX_COLOR = (255, 0, 0)  # Цвет для прямоугольников
+BOX_THICKNESS = 2  # Толщина линий прямоугольника
 
 # Путь к FFmpeg
 ffmpeg_path = r'FFmpeg/bin/ffmpeg.exe'
@@ -44,10 +46,10 @@ def preprocess(frame):
     # Преобразование в полутон
     frame = np.dot(frame[...,:3], [0.2989, 0.5870, 0.1140])
     # Векторизованная обработка всех каналов сразу
+    if PRE_MEDIAN_SIZE != 0:
+       frame = median_filter(frame, PRE_MEDIAN_SIZE)
     if GAUSSIAN_SIGMA != 0 :
         frame = gaussian_filter(frame, GAUSSIAN_SIGMA)
-    if MEDIAN_SIZE != 0:
-       frame = median_filter(frame, MEDIAN_SIZE)
     return frame
 
 # Определение движения
@@ -67,7 +69,11 @@ def motion_detector(current_frame):
 
 # Постобработка
 def postprocess(frame):
-    frame = binary_dilation(frame, iterations=DILATION_ITER).astype(np.uint8) * 255
+    if POST_MEDIAN_SIZE != 0:
+       frame = median_filter(frame, POST_MEDIAN_SIZE)
+    if MORPHOLOGY_ITER != 0:
+        #frame = binary_erosion(frame, iterations=1).astype(np.uint8) * 255
+        frame = binary_dilation(frame, iterations=MORPHOLOGY_ITER).astype(np.uint8) * 255
     return frame
 
 # Отрисовка границ объектов
@@ -99,7 +105,7 @@ def process_video_frames(unprocessed_frames):
         filtered = preprocess(frame)
         # Получение маски движения
         motion_mask = motion_detector(filtered)
-        # Морфологическое улучшение маски
+        # Улучшение маски
         motion_mask = postprocess(motion_mask)
         # Отрисовка прямоугольников на оригинальном кадре
         result_frame = draw_bounding_boxes(motion_mask, frame)
